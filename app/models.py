@@ -55,3 +55,22 @@ class Reservation(Base):
         "Product",
         back_populates="reservations"
     )
+    
+    
+class IdempotencyRecord(Base):
+    __tablename__ = "idempotency_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    key = Column(String, unique=True, nullable=False)
+
+    reservation_id = Column(
+        Integer,
+        ForeignKey("reservations.id"),
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )

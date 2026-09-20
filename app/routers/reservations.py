@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
+import time
 
 from app.database import get_db
-from app.models import Product, Reservation
+from app.models import Product, Reservation,IdempotencyRecord
 from app.schemas import (
     ReservationCreate,
     ReservationResponse
@@ -23,39 +24,56 @@ router = APIRouter(
 def reserve_product(
     product_id: int,
     reservation: ReservationCreate,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
     db: Session = Depends(get_db)
 ):
+        print("IDEMPOTENCY KEY:", idempotency_key)
 
-    product = (
-        db.query(Product)
-        .filter(Product.id == product_id)
-        .first()
-    )
-
-    if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Product not found"
+    # try:
+        product = (
+            db.query(Product)
+            .filter(Product.id == product_id)
+            .with_for_update()
+            .first()
         )
 
-    if product.available_stock < reservation.quantity:
-        raise HTTPException(
-            status_code=400,
-            detail="Insufficient stock"
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail="Product not found"
+            )
+
+        if product.available_stock < reservation.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail="Insufficient stock"
+            )
+
+        time.sleep(1)
+
+        product.available_stock -= reservation.quantity
+
+        new_reservation = Reservation(
+            product_id=product.id,
+            quantity=reservation.quantity,
+            status="confirmed"
         )
 
-    product.available_stock -= reservation.quantity
+        db.add(new_reservation)
+        
+        # print("BEFORE EXCEPTION")
 
-    new_reservation = Reservation(
-        product_id=product.id,
-        quantity=reservation.quantity,
-        status="confirmed"
-    )
+        # ROLLBACK TEST
+        # raise Exception("Something went wrong!")
 
-    db.add(new_reservation)
+        db.commit()
 
-    db.commit()
+        db.refresh(new_reservation)
 
-    db.refresh(new_reservation)
+        return new_reservation
 
-    return new_reservation
+    # except Exception as e:
+    #     print("EXCEPTION CAUGHT:", e)
+    #     db.rollback()
+    #     print("RollBack Executes")
+    #     raise
