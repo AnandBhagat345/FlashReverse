@@ -1,5 +1,6 @@
 import requests
 import time
+import uuid
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -10,7 +11,8 @@ URL = "http://127.0.0.1:8000/products/10/reserve"
 def reserve_ticket():
     response = requests.post(
         URL,
-        json={"quantity": 1}
+        json={"quantity": 1},
+        headers={"Idempotency-Key": str(uuid.uuid4())}
     )
 
     return response.status_code
@@ -49,6 +51,9 @@ for status_code in results:
 
     elif status_code == 400:
         failed += 1
+        
+    else :
+        other +=1
 
 
 print("\n===== LOAD TEST RESULT =====")
