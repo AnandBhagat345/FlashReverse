@@ -63,6 +63,14 @@ class IdempotencyRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     key = Column(String, unique=True, nullable=False)
+    
+    product_id = Column(
+        Integer,
+        ForeignKey("products.id"),
+        nullable=False
+    )
+
+    quantity = Column(Integer, nullable=False)
 
     reservation_id = Column(
         Integer,

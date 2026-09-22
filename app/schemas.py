@@ -18,7 +18,11 @@ class ProductResponse(BaseModel):
 
 
 class ReservationCreate(BaseModel):
-    quantity: int = Field(gt=0)
+    quantity: int = Field(
+    ...,
+    gt=0,
+    description="quantity must be greater than zero"
+    )
 
 
 class ReservationResponse(BaseModel):
