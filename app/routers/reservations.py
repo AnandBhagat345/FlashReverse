@@ -167,3 +167,63 @@ def reserve_product(
     db.refresh(new_reservation)
 
     return new_reservation
+
+
+@router.post("/reservations/{reservation_id}/cancel")
+def cancel_reservation(
+    reservation_id: int,
+    db: Session = Depends(get_db)
+):
+
+    # 1. Find reservation
+    reservation = (
+        db.query(Reservation)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
+
+    if not reservation:
+        raise HTTPException(
+            status_code=404,
+            detail="Reservation not found"
+        )
+
+    # 2. Prevent duplicate cancellation
+    if reservation.status == "cancelled":
+        raise HTTPException(
+            status_code=400,
+            detail="Reservation already cancelled"
+        )
+
+    # 3. Lock product row
+    product = (
+        db.query(Product)
+        .filter(Product.id == reservation.product_id)
+        .with_for_update()
+        .first()
+    )
+
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
+
+    # 4. Restore stock
+    product.available_stock += reservation.quantity
+
+    # 5. Update reservation status
+    reservation.status = "cancelled"
+
+    # 6. Commit transaction
+    db.commit()
+
+    db.refresh(reservation)
+
+    return {
+        "message": "Reservation cancelled successfully",
+        "reservation_id": reservation.id,
+        "status": reservation.status,
+        "restored_quantity": reservation.quantity,
+        "available_stock": product.available_stock
+    }
